@@ -1,98 +1,410 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+const svgRef = ref<SVGSVGElement | null>(null);
+const spotlightRef = ref<SVGCircleElement | null>(null);
+
+// Кэширование для оптимизации
+const lineDataCache: Array<{
+   path: SVGPathElement;
+   points: Array<{ x: number; y: number }>;
+   bbox: DOMRect;
+}> = [];
+
+const throttle = (func: Function, wait: number) => {
+   let timeout: number | null = null;
+   return (...args: any[]) => {
+      if (timeout === null) {
+         timeout = window.setTimeout(() => {
+            func.apply(null, args);
+            timeout = null;
+         }, wait);
+      }
+   };
+};
+
+// Регистрируем плагин ScrollTrigger
+gsap.registerPlugin(ScrollTrigger);
+
+onMounted(() => {
+   const linesForAnim = svgRef.value.querySelectorAll('.svg-line');
+
+   // Устанавливаем начальное состояние для всех линий
+   linesForAnim.forEach((line) => {
+      const length = line.getTotalLength();
+
+      // Устанавливаем stroke-dasharray и stroke-dashoffset
+      gsap.set(line, {
+         strokeDasharray: length,
+         strokeDashoffset: length,
+      });
+   });
+
+   // Создаем анимацию с ScrollTrigger
+   linesForAnim.forEach((line) => {
+      gsap.to(line, {
+         strokeDashoffset: 0,
+         duration: 3,
+         ease: 'power2.inOut',
+         scrollTrigger: {
+            trigger: svgRef.value,
+            start: 'top 80%', // Анимация начнется когда верх элемента будет на 80% от высоты экрана
+            end: 'bottom 20%',
+            toggleActions: 'play none none reverse', // play при входе, reverse при выходе
+         },
+      });
+   });
+
+   // Эффект локальной подсветки участка линии
+   const svg = svgRef.value;
+   const spotlight = spotlightRef.value;
+   if (!svg || !spotlight) return;
+
+   const lines = svg.querySelectorAll('[id^="line_Vector_"]') as NodeListOf<SVGPathElement>;
+
+   // Предварительная обработка линий
+   lines.forEach((line) => {
+      const pathLength = line.getTotalLength();
+      const points = [];
+      const step = Math.max(pathLength / 50, 5); // Уменьшаем количество точек
+
+      for (let i = 0; i <= pathLength; i += step) {
+         points.push(line.getPointAtLength(i));
+      }
+
+      lineDataCache.push({
+         path: line,
+         points,
+         bbox: line.getBBox(),
+      });
+   });
+
+   const handleMouseMove = throttle((e: MouseEvent) => {
+      const rect = svg.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      // Обновляем позицию spotlight
+      spotlight.setAttribute('cx', mouseX.toString());
+      spotlight.setAttribute('cy', mouseY.toString());
+
+      let minDistance = Infinity;
+
+      // Быстрая проверка через bounding box
+      lineDataCache.forEach(({ points, bbox }) => {
+         // Предварительная проверка bbox
+         if (
+            mouseX >= bbox.x - 100 &&
+            mouseX <= bbox.x + bbox.width + 100 &&
+            mouseY >= bbox.y - 100 &&
+            mouseY <= bbox.y + bbox.height + 100
+         ) {
+            // Более точная проверка только для близких линий
+            points.forEach((point) => {
+               const distance = Math.sqrt(
+                  Math.pow(mouseX - point.x, 2) + Math.pow(mouseY - point.y, 2),
+               );
+               minDistance = Math.min(minDistance, distance);
+            });
+         }
+      });
+
+      // Обновляем spotlight
+      if (minDistance < 100) {
+         const intensity = 1 - minDistance / 100;
+         gsap.set(spotlight, {
+            attr: {
+               r: 20 + intensity * 50,
+               opacity: 0.1 + intensity * 0.7,
+            },
+            duration: 0.1,
+         });
+      } else {
+         gsap.set(spotlight, { attr: { opacity: 0 }, duration: 0.1 });
+      }
+   }, 16); // 60 FPS
+
+   const handleMouseLeave = () => {
+      gsap.set(spotlight, { attr: { opacity: 0 } });
+   };
+
+   svg.addEventListener('mousemove', handleMouseMove);
+   svg.addEventListener('mouseleave', handleMouseLeave);
+
+   onBeforeUnmount(() => {
+      svg.removeEventListener('mousemove', handleMouseMove);
+      svg.removeEventListener('mouseleave', handleMouseLeave);
+   });
+});
+</script>
 
 <template>
    <UContainer>
       <div class="py-10">
-         <h1 class="text-8xl text-center mb-10">Welcome to Animation!</h1>
+         <h1 class="text-4xl lg:text-8xl text-center mb-40 mt-40">Welcome to Animation!</h1>
+
+         <p class="mx-auto mb-20 w-fit">Scroll to animated element</p>
+
+         <UBadge
+            class="flex mx-auto w-fit mb-40"
+            size="xl">
+            <UIcon name="lucide-arrow-down" />
+         </UBadge>
 
          <svg
+            ref="svgRef"
             width="569"
             height="382"
             viewBox="0 0 569 382"
             fill="none"
-            class="mx-auto"
+            class="mx-auto neon-svg max-w-full"
             xmlns="http://www.w3.org/2000/svg">
+            <defs>
+               <!-- Определяем radial gradient для подсветки -->
+               <radialGradient id="spotlightGradient">
+                  <stop
+                     offset="0%"
+                     stop-color="#00ff00"
+                     stop-opacity="1" />
+                  <stop
+                     offset="50%"
+                     stop-color="#00ff00"
+                     stop-opacity="0.6" />
+                  <stop
+                     offset="100%"
+                     stop-color="#00ff00"
+                     stop-opacity="0" />
+               </radialGradient>
+
+               <!-- Фильтр для свечения -->
+               <filter
+                  id="glowFilter"
+                  x="-50%"
+                  y="-50%"
+                  width="200%"
+                  height="200%">
+                  <feGaussianBlur
+                     in="SourceGraphic"
+                     stdDeviation="5"
+                     result="blur" />
+                  <feComposite
+                     in="SourceGraphic"
+                     in2="blur"
+                     operator="over" />
+               </filter>
+
+               <!-- Маска для локальной подсветки -->
+               <mask id="spotlightMask">
+                  <rect
+                     width="100%"
+                     height="100%"
+                     fill="white"
+                     opacity="0.1" />
+                  <circle
+                     ref="spotlightRef"
+                     cx="0"
+                     cy="0"
+                     r="20"
+                     fill="url(#spotlightGradient)"
+                     opacity="0" />
+               </mask>
+            </defs>
+
             <g id="Frame 1707479390">
-               <g id="Patterns&#39;">
+               <g
+                  id="Patterns"
+                  opacity="0.2">
                   <path
-                     id="Vector 314"
+                     id="line_Vector_314"
+                     class="svg-line"
                      d="M225.465 225.44L508.083 389.159"
                      stroke="url(#paint0_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 315"
+                     id="line_Vector_315"
+                     class="svg-line"
                      d="M314.119 217.449L543.122 351.773"
                      stroke="url(#paint1_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 325"
+                     id="line_Vector_325"
+                     class="svg-line"
                      d="M7.68457 95.9205L209.666 215.959"
                      stroke="url(#paint2_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 312"
+                     id="line_Vector_312"
+                     class="svg-line"
                      d="M306.301 220.114L507.891 98.827"
                      stroke="url(#paint3_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 323"
+                     id="line_Vector_323"
+                     class="svg-line"
                      d="M30.3602 386.61L271.374 240.404"
                      stroke="url(#paint4_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 318"
+                     id="line_Vector_318"
+                     class="svg-line"
                      d="M310.458 161.066L490.596 54.6141"
                      stroke="url(#paint5_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 324"
+                     id="line_Vector_324"
+                     class="svg-line"
                      d="M36.845 326.967L216.649 214.291"
                      stroke="url(#paint6_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 316"
+                     id="line_Vector_316"
+                     class="svg-line"
                      d="M318.113 356.506L483.613 256.375"
                      stroke="url(#paint7_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 317"
+                     id="line_Vector_317"
+                     class="svg-line"
                      d="M345.057 395.758L510.557 295.626"
                      stroke="url(#paint8_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 319"
+                     id="line_Vector_319"
+                     class="svg-line"
                      d="M52.3154 178.03L195.86 91.8706"
                      stroke="url(#paint9_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 320"
+                     id="line_Vector_320"
+                     class="svg-line"
                      d="M0.086332 155.412L161.428 57.4428"
                      stroke="url(#paint10_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 313"
+                     id="line_Vector_313"
+                     class="svg-line"
                      d="M37.5075 295.017L195.289 386.112"
                      stroke="url(#paint11_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 326"
+                     id="line_Vector_326"
+                     class="svg-line"
                      d="M37.5075 59.8629L244.701 178.579"
                      stroke="url(#paint12_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 321"
+                     id="line_Vector_321"
+                     class="svg-line"
                      d="M311.624 85.0503L478.455 184.184"
                      stroke="url(#paint13_linear_2_181)"
                      stroke-width="0.332663" />
                   <path
-                     id="Vector 322"
+                     id="line_Vector_322"
+                     class="svg-line"
                      d="M353.038 52.4531L508.725 146.597"
                      stroke="url(#paint14_linear_2_181)"
                      stroke-width="0.332663" />
                </g>
+               <g
+                  id="PatternsHighlight"
+                  mask="url(#spotlightMask)"
+                  filter="url(#glowFilter)">
+                  <path
+                     id="line_Vector_314"
+                     class="svg-line"
+                     d="M225.465 225.44L508.083 389.159"
+                     stroke="url(#h_paint0_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_315"
+                     class="svg-line"
+                     d="M314.119 217.449L543.122 351.773"
+                     stroke="url(#h_paint1_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_325"
+                     class="svg-line"
+                     d="M7.68457 95.9205L209.666 215.959"
+                     stroke="url(#h_paint2_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_312"
+                     class="svg-line"
+                     d="M306.301 220.114L507.891 98.827"
+                     stroke="url(#h_paint3_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_323"
+                     class="svg-line"
+                     d="M30.3602 386.61L271.374 240.404"
+                     stroke="url(#h_paint4_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_318"
+                     class="svg-line"
+                     d="M310.458 161.066L490.596 54.6141"
+                     stroke="url(#h_paint5_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_324"
+                     class="svg-line"
+                     d="M36.845 326.967L216.649 214.291"
+                     stroke="url(#h_paint6_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_316"
+                     class="svg-line"
+                     d="M318.113 356.506L483.613 256.375"
+                     stroke="url(#h_paint7_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_317"
+                     class="svg-line"
+                     d="M345.057 395.758L510.557 295.626"
+                     stroke="url(#h_paint8_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_319"
+                     class="svg-line"
+                     d="M52.3154 178.03L195.86 91.8706"
+                     stroke="url(#h_paint9_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_320"
+                     class="svg-line"
+                     d="M0.086332 155.412L161.428 57.4428"
+                     stroke="url(#h_paint10_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_313"
+                     class="svg-line"
+                     d="M37.5075 295.017L195.289 386.112"
+                     stroke="url(#h_paint11_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_326"
+                     class="svg-line"
+                     d="M37.5075 59.8629L244.701 178.579"
+                     stroke="url(#h_paint12_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_321"
+                     class="svg-line"
+                     d="M311.624 85.0503L478.455 184.184"
+                     stroke="url(#h_paint13_linear_2_181)"
+                     stroke-width="0.5" />
+                  <path
+                     id="line_Vector_322"
+                     class="svg-line"
+                     d="M353.038 52.4531L508.725 146.597"
+                     stroke="url(#h_paint14_linear_2_181)"
+                     stroke-width="0.5" />
+               </g>
                <g id="Podium main">
                   <path
                      id="Vector 313_2"
+                     class="svg-line"
                      d="M37.3127 238.029L236.377 359.154"
                      stroke="url(#paint15_linear_2_181)"
                      stroke-width="0.332663" />
@@ -115,6 +427,7 @@
                               d="M204.018 182.859C197.698 179.306 197.589 170.245 203.823 166.542L255.216 136.014C264.934 130.241 277.022 130.207 286.772 135.925L338.789 166.429C345.078 170.117 344.976 179.245 338.606 182.791L285.022 212.625C276.268 217.499 265.611 217.477 256.877 212.568L204.018 182.859Z"
                               fill="url(#paint19_radial_2_181)" />
                            <path
+                              class="svg-line"
                               d="M204.1 182.714C197.891 179.224 197.784 170.323 203.908 166.685L255.301 136.157C264.967 130.415 276.99 130.381 286.688 136.069L338.705 166.572C344.883 170.195 344.783 179.162 338.526 182.646L284.941 212.48C276.238 217.325 265.642 217.304 256.958 212.423L204.1 182.714Z"
                               stroke="#479650"
                               stroke-opacity="0.3"
@@ -130,6 +443,7 @@
                         </g>
                         <g id="Vector 14">
                            <path
+                              class="svg-line"
                               d="M198.97 195.829L256.874 229.234C262.971 232.196 274.668 234.626 284.867 229.234C295.067 223.843 330.185 202.367 343.748 194.329"
                               stroke="url(#paint21_linear_2_181)"
                               stroke-width="0.554321"
@@ -161,29 +475,43 @@
                               fill="url(#paint28_linear_2_181)" />
                         </g>
                      </g>
-                     <g id="Group 1227">
+                     <g
+                        id="Group 1227"
+                        mask="url(#spotlightMask)"
+                        filter="url(#glowFilter)">
                         <path
-                           id="Vector 26"
+                           id="line_Vector_26"
+                           class="svg-line"
                            d="M224.598 210.525L187.337 232.209C185.819 233.093 184.712 234.54 184.257 236.237L176.397 265.572C175.94 267.276 174.825 268.729 173.298 269.611L115.197 303.156"
                            stroke="url(#paint29_linear_2_181)"
-                           stroke-width="0.332663" />
+                           stroke-width="0.332663"
+                           stroke-linecap="round" />
                         <path
-                           id="Vector 27"
+                           id="line_Vector_27"
+                           class="svg-line"
                            d="M230.916 214.348L193.925 235.811C192.403 236.694 191.293 238.143 190.838 239.843L182.979 269.173C182.522 270.877 181.407 272.33 179.88 273.212L121.779 306.756"
                            stroke="url(#paint30_linear_2_181)"
-                           stroke-width="0.332663" />
+                           stroke-width="0.332663"
+                           stroke-linecap="round" />
                      </g>
-                     <g id="Group 1228">
+                     <g
+                        id="Group 1228"
+                        mask="url(#spotlightMask)"
+                        filter="url(#glowFilter)">
                         <path
-                           id="Vector 28"
+                           id="line_Vector_28"
+                           class="svg-line"
                            d="M316.414 210.693L353.321 231.937C354.853 232.818 355.97 234.273 356.428 235.98L364.283 265.297C364.74 267.001 365.855 268.454 367.383 269.336L425.484 302.881"
                            stroke="url(#paint31_linear_2_181)"
-                           stroke-width="0.332663" />
+                           stroke-width="0.332663"
+                           stroke-linecap="round" />
                         <path
-                           id="Vector 29"
+                           id="line_Vector_29"
+                           class="svg-line"
                            d="M309.926 214.52L346.681 235.817C348.204 236.7 349.315 238.15 349.771 239.851L357.629 269.179C358.086 270.883 359.201 272.336 360.729 273.218L418.829 306.763"
                            stroke="url(#paint32_linear_2_181)"
-                           stroke-width="0.332663" />
+                           stroke-width="0.332663"
+                           stroke-linecap="round" />
                      </g>
                      <circle
                         id="Ellipse 1893"
@@ -212,14 +540,20 @@
                      </g>
                      <path
                         id="Vector 30"
+                        class="svg-line"
                         d="M332.049 162.622L397.916 124.7"
                         stroke="url(#paint36_linear_2_181)"
-                        stroke-width="0.332663" />
+                        stroke-width="0.332663"
+                        mask="url(#spotlightMask)"
+                        filter="url(#glowFilter)" />
                      <path
                         id="Vector 31"
+                        class="svg-line"
                         d="M201.186 169.28L122.639 124.372"
                         stroke="url(#paint37_linear_2_181)"
-                        stroke-width="0.332663" />
+                        stroke-width="0.332663"
+                        mask="url(#spotlightMask)"
+                        filter="url(#glowFilter)" />
                      <g
                         id="Brand Logo-Link"
                         style="mix-blend-mode: luminosity"
@@ -293,6 +627,7 @@
                         d="M56.7248 104.177C52.7 101.915 52.6308 96.1449 56.6004 93.787L89.3266 74.3472C95.5148 70.6713 103.212 70.6496 109.421 74.2906L142.544 93.715C146.549 96.0636 146.484 101.876 142.428 104.134L108.306 123.132C102.732 126.235 95.946 126.221 90.3842 123.095L56.7248 104.177Z"
                         fill="url(#paint51_radial_2_181)" />
                      <path
+                        class="svg-line"
                         d="M56.7769 104.085C52.8231 101.862 52.7549 96.1945 56.6541 93.8781L89.3805 74.438C95.5356 70.7818 103.192 70.7604 109.367 74.3819L142.491 93.8069C146.425 96.1142 146.361 101.823 142.376 104.041L108.254 123.039C102.712 126.124 95.9659 126.111 90.4363 123.003L56.7769 104.085Z"
                         stroke="#479650"
                         stroke-opacity="0.3"
@@ -301,6 +636,7 @@
                   </g>
                   <g id="Vector 14_2">
                      <path
+                        class="svg-line"
                         d="M53.5125 112.444L90.3845 133.716C94.2673 135.602 101.715 137.149 108.21 133.716C114.705 130.283 137.068 116.607 145.704 111.489"
                         stroke="url(#paint52_linear_2_181)"
                         stroke-width="0.352981"
@@ -350,6 +686,7 @@
                         d="M379.409 104.514C375.384 102.252 375.315 96.4818 379.285 94.1239L412.011 74.6841C418.199 71.0082 425.896 70.9865 432.105 74.6276L465.229 94.0519C469.234 96.4005 469.169 102.213 465.112 104.471L430.991 123.468C425.416 126.572 418.63 126.558 413.069 123.432L379.409 104.514Z"
                         fill="url(#paint63_radial_2_181)" />
                      <path
+                        class="svg-line"
                         d="M379.461 104.422C375.507 102.199 375.439 96.5314 379.338 94.215L412.065 74.775C418.22 71.1187 425.876 71.0973 432.052 74.7188L465.175 94.1439C469.109 96.4511 469.045 102.16 465.06 104.378L430.939 123.376C425.397 126.461 418.65 126.448 413.121 123.34L379.461 104.422Z"
                         stroke="#479650"
                         stroke-opacity="0.3"
@@ -358,6 +695,7 @@
                   </g>
                   <g id="Vector 14_3">
                      <path
+                        class="svg-line"
                         d="M376.197 112.776L413.069 134.049C416.952 135.934 424.399 137.482 430.894 134.049C437.389 130.615 459.752 116.94 468.388 111.822"
                         stroke="url(#paint64_linear_2_181)"
                         stroke-width="0.352981"
@@ -407,6 +745,7 @@
                         d="M387.723 298.122C383.698 295.86 383.629 290.09 387.599 287.732L420.325 268.292C426.513 264.616 434.211 264.594 440.419 268.235L473.543 287.66C477.548 290.008 477.483 295.82 473.426 298.079L439.305 317.076C433.731 320.18 426.944 320.166 421.383 317.04L387.723 298.122Z"
                         fill="url(#paint75_radial_2_181)" />
                      <path
+                        class="svg-line"
                         d="M387.775 298.029C383.822 295.807 383.753 290.139 387.653 287.823L420.379 268.383C426.534 264.727 434.19 264.705 440.366 268.327L473.489 287.752C477.423 290.059 477.359 295.767 473.375 297.986L439.253 316.984C433.711 320.069 426.964 320.056 421.435 316.948L387.775 298.029Z"
                         stroke="#479650"
                         stroke-opacity="0.3"
@@ -415,6 +754,7 @@
                   </g>
                   <g id="Vector 14_4">
                      <path
+                        class="svg-line"
                         d="M384.513 306.384L421.385 327.656C425.268 329.542 432.716 331.09 439.211 327.656C445.706 324.223 468.068 310.548 476.705 305.429"
                         stroke="url(#paint76_linear_2_181)"
                         stroke-width="0.352981"
@@ -534,6 +874,7 @@
                         ></foreignObject>
                         <path
                            id="Front"
+                           class="svg-line"
                            data-figma-bg-blur-radius="1.07801"
                            d="M462.113 234.852V274.626C462.113 276.368 460.281 277.5 458.724 276.721L449.003 271.862C448.86 271.79 448.77 271.643 448.77 271.484V228.18L462.113 234.852Z"
                            fill="#6F53FF"
@@ -556,6 +897,7 @@
                         ></foreignObject>
                         <path
                            id="Right"
+                           class="svg-line"
                            data-figma-bg-blur-radius="1.07801"
                            d="M448.882 271.484C448.882 271.644 448.792 271.791 448.649 271.862L435.538 278.417V235.485L448.882 228.813V271.484Z"
                            fill="#6F53FF"
@@ -603,6 +945,7 @@
                               fill="url(#paint90_radial_2_181)"
                               fill-opacity="0.5" />
                            <path
+                              class="svg-line"
                               d="M448.693 241.918V284.97L437.551 279.4C436.969 279.109 436.541 278.894 436.218 278.689C435.898 278.485 435.69 278.295 435.543 278.058C435.397 277.821 435.32 277.551 435.281 277.173C435.241 276.792 435.242 276.314 435.242 275.663V235.193L448.693 241.918Z"
                               stroke="url(#paint91_linear_2_181)"
                               stroke-width="0.269502" />
@@ -623,6 +966,7 @@
                         ></foreignObject>
                         <path
                            id="Right_2"
+                           class="svg-line"
                            data-figma-bg-blur-radius="3.79677"
                            d="M462.414 275.667C462.414 276.318 462.414 276.796 462.375 277.177C462.336 277.554 462.259 277.824 462.112 278.062C461.966 278.299 461.759 278.489 461.438 278.692C461.115 278.898 460.688 279.112 460.105 279.403L448.963 284.974V241.918L462.414 234.572V275.667Z"
                            fill="#40C350"
@@ -655,6 +999,7 @@
                               fill="url(#paint93_radial_2_181)"
                               fill-opacity="0.5" />
                            <path
+                              class="svg-line"
                               d="M448.838 228.057C449.236 228.05 449.625 228.138 450.113 228.329C450.604 228.52 451.186 228.812 451.973 229.206L462.257 234.347L448.825 241.683L435.397 234.969L445.748 229.318C446.52 228.896 447.091 228.584 447.575 228.375C448.056 228.166 448.441 228.064 448.838 228.057Z"
                               stroke="url(#paint94_linear_2_181)"
                               stroke-width="0.269502" />
@@ -677,6 +1022,7 @@
                         ></foreignObject>
                         <path
                            id="Front_3"
+                           class="svg-line"
                            data-figma-bg-blur-radius="1.07801"
                            d="M447.646 258.669V283.256C447.646 284.997 445.814 286.13 444.256 285.352L434.535 280.491C434.393 280.42 434.302 280.274 434.302 280.114V251.997L447.646 258.669Z"
                            fill="#29E5F0"
@@ -698,6 +1044,7 @@
                         ></foreignObject>
                         <path
                            id="Right_3"
+                           class="svg-line"
                            data-figma-bg-blur-radius="1.07801"
                            d="M434.414 280.114C434.414 280.274 434.324 280.42 434.182 280.491L424.461 285.352C422.904 286.13 421.07 284.997 421.07 283.256V258.669L434.414 251.997V280.114Z"
                            fill="#29E5F0"
@@ -744,6 +1091,7 @@
                               fill="url(#paint99_radial_2_181)"
                               fill-opacity="0.8" />
                            <path
+                              class="svg-line"
                               d="M434.223 264.468V293.598L423.082 288.028C422.499 287.737 422.071 287.522 421.749 287.317C421.428 287.113 421.22 286.924 421.074 286.687C420.927 286.45 420.85 286.179 420.811 285.801C420.772 285.421 420.772 284.943 420.772 284.292V257.743L434.223 264.468Z"
                               stroke="url(#paint100_linear_2_181)"
                               stroke-width="0.269502" />
@@ -764,6 +1112,7 @@
                         ></foreignObject>
                         <path
                            id="Right_4"
+                           class="svg-line"
                            data-figma-bg-blur-radius="3.79677"
                            d="M447.94 284.291C447.94 284.942 447.94 285.42 447.901 285.801C447.862 286.178 447.784 286.449 447.638 286.686C447.491 286.923 447.284 287.113 446.964 287.316C446.641 287.522 446.213 287.736 445.631 288.027L434.489 293.599V264.464L447.94 257.118V284.291Z"
                            fill="#40C350"
@@ -796,6 +1145,7 @@
                               fill="url(#paint102_radial_2_181)"
                               fill-opacity="0.5" />
                            <path
+                              class="svg-line"
                               d="M434.369 250.607C434.766 250.6 435.155 250.688 435.643 250.879C436.134 251.07 436.716 251.362 437.503 251.756L447.788 256.897L434.355 264.233L420.927 257.519L431.278 251.868C432.05 251.446 432.622 251.134 433.105 250.925C433.586 250.716 433.971 250.615 434.369 250.607Z"
                               stroke="url(#paint103_linear_2_181)"
                               stroke-width="0.269502" />
@@ -818,6 +1168,7 @@
                         ></foreignObject>
                         <path
                            id="Front_5"
+                           class="svg-line"
                            data-figma-bg-blur-radius="1.07801"
                            d="M433.178 277.658V290.855C433.178 292.597 431.346 293.729 429.789 292.95L420.068 288.09C419.925 288.018 419.835 287.872 419.835 287.713V270.986L433.178 277.658Z"
                            fill="#60BBFF"
@@ -840,6 +1191,7 @@
                         ></foreignObject>
                         <path
                            id="Right_5"
+                           class="svg-line"
                            data-figma-bg-blur-radius="1.07801"
                            d="M419.947 287.713C419.947 287.872 419.857 288.018 419.714 288.09L409.994 292.95C408.436 293.729 406.603 292.597 406.603 290.855V277.658L419.947 270.986V287.713Z"
                            fill="#60BBFF"
@@ -887,6 +1239,7 @@
                               fill="url(#paint108_radial_2_181)"
                               fill-opacity="0.5" />
                            <path
+                              class="svg-line"
                               d="M419.756 284.724V301.198L408.614 295.628C408.032 295.337 407.604 295.123 407.281 294.918C406.961 294.714 406.753 294.524 406.606 294.287C406.46 294.05 406.383 293.78 406.344 293.402C406.304 293.021 406.305 292.543 406.305 291.891V277.999L419.756 284.724Z"
                               stroke="url(#paint109_linear_2_181)"
                               stroke-width="0.269502" />
@@ -907,6 +1260,7 @@
                         ></foreignObject>
                         <path
                            id="Right_6"
+                           class="svg-line"
                            data-figma-bg-blur-radius="3.79677"
                            d="M433.475 291.886C433.475 292.538 433.475 293.016 433.436 293.397C433.396 293.775 433.319 294.045 433.173 294.282C433.026 294.519 432.819 294.709 432.499 294.913C432.176 295.118 431.748 295.332 431.166 295.623L420.023 301.194V284.716L433.475 277.37V291.886Z"
                            fill="#40C350"
@@ -939,6 +1293,7 @@
                               fill="url(#paint111_radial_2_181)"
                               fill-opacity="0.5" />
                            <path
+                              class="svg-line"
                               d="M419.901 270.868C420.299 270.861 420.688 270.949 421.176 271.139C421.667 271.331 422.249 271.623 423.036 272.016L433.32 277.158L419.888 284.494L406.46 277.78L416.811 272.129C417.583 271.707 418.154 271.394 418.638 271.185C419.119 270.977 419.504 270.875 419.901 270.868Z"
                               stroke="url(#paint112_linear_2_181)"
                               stroke-width="0.269502" />
@@ -964,6 +1319,7 @@
                         d="M67.3661 292.135C63.3412 289.872 63.2721 284.102 67.2416 281.744L99.9678 262.305C106.156 258.629 113.853 258.607 120.062 262.248L153.185 281.672C157.19 284.021 157.125 289.833 153.069 292.092L118.948 311.089C113.373 314.193 106.587 314.179 101.025 311.053L67.3661 292.135Z"
                         fill="url(#paint116_radial_2_181)" />
                      <path
+                        class="svg-line"
                         d="M67.4181 292.042C63.4644 289.82 63.3962 284.152 67.2954 281.836L100.022 262.396C106.177 258.739 113.833 258.718 120.009 262.339L153.132 281.764C157.066 284.072 157.002 289.78 153.017 291.999L118.896 310.996C113.354 314.082 106.607 314.069 101.078 310.961L67.4181 292.042Z"
                         stroke="#479650"
                         stroke-opacity="0.3"
@@ -972,6 +1328,7 @@
                   </g>
                   <g id="Vector 14_5">
                      <path
+                        class="svg-line"
                         d="M64.1559 300.401L101.028 321.674C104.911 323.559 112.359 325.107 118.853 321.674C125.348 318.24 147.711 304.565 156.348 299.447"
                         stroke="url(#paint117_linear_2_181)"
                         stroke-width="0.352981"
@@ -1045,6 +1402,7 @@
                      }">
                      <path
                         id="Vector 158"
+                        class="svg-line"
                         d="M104.845 238.486C104.474 238.321 104.069 238.31 103.603 238.524C101.587 239.452 100.265 242.008 99.3697 245.335C98.4802 248.641 98.0363 252.61 97.6986 256.231C97.363 259.829 97.1307 263.116 96.659 264.99C96.5404 265.462 96.4021 265.865 96.2334 266.167C96.069 266.461 95.8468 266.71 95.532 266.784C95.1951 266.863 94.858 266.718 94.5554 266.466C94.2571 266.217 93.9481 265.831 93.6208 265.32L93.6092 265.303L93.6005 265.284C91.6208 261.297 91.3512 258.509 91.0445 256.442C90.9441 255.766 90.6788 255.281 90.3565 254.964C90.0342 254.648 89.6347 254.477 89.2272 254.456C88.4169 254.414 87.5276 254.969 87.2747 256.259C86.8921 258.21 86.8539 260.423 86.62 262.639C86.3895 264.823 85.9687 266.97 84.7977 268.63C84.3898 269.207 83.6033 269.61 82.7375 269.917C81.859 270.228 80.837 270.46 79.8976 270.659C79.3882 270.767 79.3616 271.411 79.8783 271.681L130.734 298.227L134.363 296.094C134.569 295.973 134.664 295.745 134.612 295.502C133.122 288.411 131.136 277.275 128.721 270.253C128.118 268.5 127.494 267.024 126.854 265.938C126.203 264.832 125.584 264.218 125.022 264.046C124.505 263.888 123.883 264.07 123.152 264.978C122.426 265.881 121.658 267.428 120.859 269.775C120.347 271.278 119.863 272.463 119.401 273.361C118.943 274.254 118.497 274.885 118.051 275.258C117.6 275.636 117.106 275.782 116.591 275.593C116.105 275.414 115.701 274.97 115.358 274.413C114.665 273.292 114.055 271.446 113.484 269.211C112.909 266.964 112.364 264.276 111.818 261.442C110.721 255.76 109.619 249.492 108.256 244.885C107.573 242.575 106.837 240.727 106.03 239.586C105.628 239.018 105.231 238.658 104.845 238.486Z"
                         fill="url(#paint126_linear_2_181)"
                         fill-opacity="0.7"
@@ -1060,6 +1418,7 @@
                            fill="url(#paint129_radial_2_181)"
                            fill-opacity="0.8" />
                         <path
+                           class="svg-line"
                            d="M101.466 241.573C101.095 241.408 100.69 241.397 100.224 241.612C98.208 242.539 96.886 245.095 95.9908 248.422C95.1013 251.728 94.6574 255.697 94.3197 259.318C93.9841 262.916 93.7518 266.203 93.2801 268.078C93.1615 268.549 93.0232 268.952 92.8545 269.254C92.6901 269.548 92.4679 269.798 92.1531 269.871C91.8162 269.95 91.4791 269.805 91.1765 269.553C90.8782 269.305 90.5692 268.918 90.2419 268.407L90.2303 268.39L90.2216 268.371C88.2419 264.384 87.9722 261.596 87.6655 259.529C87.5655 258.855 87.2959 258.364 86.9613 258.036C86.6257 257.707 86.2042 257.52 85.7666 257.484C84.8938 257.412 83.9324 257.941 83.5733 259.192C83.3008 260.142 83.132 261.142 82.9764 262.157C82.8218 263.166 82.679 264.196 82.459 265.174C82.017 267.137 81.2506 268.952 79.3767 270.145C79.1346 270.299 79.0058 270.598 79.0206 270.906C79.0353 271.211 79.1841 271.469 79.4335 271.598L130.143 298.011C130.61 298.254 131.091 297.91 130.99 297.415C129.487 290.112 127.518 279.394 125.147 272.787C124.555 271.137 123.945 269.764 123.321 268.771C122.686 267.762 122.091 267.231 121.555 267.11C121.046 266.995 120.431 267.218 119.715 268.139C119.006 269.052 118.258 270.579 117.48 272.863C116.968 274.365 116.484 275.55 116.023 276.448C115.564 277.341 115.118 277.972 114.672 278.346C114.221 278.723 113.727 278.869 113.212 278.68C112.726 278.501 112.322 278.057 111.979 277.5C111.286 276.379 110.676 274.533 110.105 272.298C109.53 270.051 108.985 267.363 108.439 264.529C107.342 258.847 106.24 252.579 104.877 247.972C104.194 245.662 103.458 243.814 102.651 242.673C102.249 242.105 101.852 241.745 101.466 241.573Z"
                            stroke="url(#paint130_linear_2_181)"
                            stroke-width="0.668788" />
@@ -1110,6 +1469,7 @@
                      ></foreignObject>
                      <path
                         id="Vector 170_2"
+                        class="svg-line"
                         data-figma-bg-blur-radius="2.91315"
                         d="M417.578 37.3278C406.882 37.8678 397.998 34.3678 394.892 32.5503C394.322 60.7592 411.568 82.9355 420.262 90.4975C441.702 85.425 442.825 66.0829 440.706 57.0459C428.156 49.2629 420.069 40.631 417.578 37.3278Z"
                         fill="#74D880"
@@ -1132,6 +1492,7 @@
                      ></foreignObject>
                      <path
                         id="Vector 168_2"
+                        class="svg-line"
                         data-figma-bg-blur-radius="2.91315"
                         d="M417.577 37.3997C406.374 37.7888 397.783 34.3388 394.888 32.5538L405.193 26.7342C411.115 30.4253 421.875 30.7757 426.898 30.626L417.577 37.3997Z"
                         fill="url(#paint136_linear_2_181)"
@@ -1154,6 +1515,7 @@
                      ></foreignObject>
                      <path
                         id="Vector 169_2"
+                        class="svg-line"
                         data-figma-bg-blur-radius="2.91315"
                         d="M426.902 30.6216L417.581 37.3966C424.513 46.2737 435.884 54.1711 440.705 57.045L450.03 50.3397C438.97 43.666 429.894 34.3152 426.902 30.6216Z"
                         fill="url(#paint138_linear_2_181)"
@@ -1200,6 +1562,7 @@
                   }">
                   <path
                      id="Ellipse 253"
+                     class="svg-line"
                      d="M99.053 76.9556C104.182 76.8786 108.831 77.8981 112.2 79.5985C115.579 81.3045 117.614 83.6627 117.652 86.2402C117.691 88.8175 115.727 91.235 112.401 93.0414C109.085 94.8421 104.469 96.0005 99.3398 96.0774C94.2107 96.1543 89.5616 95.135 86.1932 93.4344C82.8143 91.7286 80.7803 89.3711 80.7414 86.7938C80.7028 84.2163 82.6652 81.7981 85.9916 79.9916C89.3075 78.1908 93.9239 77.0325 99.053 76.9556Z"
                      fill="#6562E7"
                      stroke="url(#paint141_linear_2_181)"
@@ -1217,6 +1580,7 @@
                   </g>
                   <path
                      id="Ellipse 255"
+                     class="svg-line"
                      d="M98.4429 70.0381C105.136 69.9378 111.203 71.3625 115.6 73.7315C120.007 76.1059 122.672 79.3885 122.726 82.986C122.78 86.5834 120.214 89.9445 115.881 92.4501C111.557 94.9497 105.535 96.5558 98.8421 96.6562C92.149 96.7566 86.0817 95.3317 81.6852 92.9629C77.2785 90.5885 74.6134 87.3058 74.5593 83.7084C74.5053 80.1109 77.0708 76.7499 81.4045 74.2443C85.728 71.7446 91.7496 70.1385 98.4429 70.0381Z"
                      fill="#D2F4FF"
                      stroke="url(#paint142_linear_2_181)"
@@ -1237,6 +1601,7 @@
                   ></foreignObject>
                   <path
                      id="Ellipse 252"
+                     class="svg-line"
                      data-figma-bg-blur-radius="4.24299"
                      d="M98.4451 70.3177C105.138 70.2173 111.206 71.6421 115.602 74.011C120.009 76.3855 122.674 79.668 122.728 83.2655C122.782 86.8629 120.216 90.2241 115.883 92.7296C111.559 95.2293 105.538 96.8354 98.8443 96.9358C92.1512 97.0362 86.0839 95.6113 81.6874 93.2425C77.2807 90.868 74.6156 87.5854 74.5615 83.9879C74.5075 80.3904 77.073 77.0295 81.4067 74.5239C85.7301 72.0242 91.7518 70.4181 98.4451 70.3177Z"
                      fill="#099D1B"
@@ -1269,6 +1634,7 @@
                         fill="url(#paint144_radial_2_181)"
                         fill-opacity="0.2" />
                      <path
+                        class="svg-line"
                         d="M98.3927 66.8531C105.086 66.7527 111.153 68.1775 115.55 70.5464C119.956 72.9209 122.622 76.2034 122.676 79.8009C122.729 83.3983 120.164 86.7595 115.83 89.265C111.507 91.7647 105.485 93.3708 98.7919 93.4712C92.0987 93.5716 86.0315 92.1467 81.635 89.7779C77.2283 87.4034 74.5632 84.1208 74.5091 80.5233C74.4551 76.9258 77.0206 73.5649 81.3542 71.0593C85.6777 68.5596 91.6994 66.9535 98.3927 66.8531Z"
                         stroke="url(#paint145_linear_2_181)"
                         stroke-width="0.622666" />
@@ -1285,6 +1651,7 @@
                            fill-opacity="0.08" />
                      </g>
                      <path
+                        class="svg-line"
                         d="M98.9459 69.5369C104.075 69.4599 108.724 70.4794 112.093 72.1798C115.472 73.8858 117.507 76.244 117.545 78.8215C117.584 81.3988 115.62 83.8163 112.294 85.6227C108.978 87.4234 104.362 88.5818 99.2327 88.6587C94.1036 88.7356 89.4546 87.7163 86.0862 86.0157C82.7073 84.3099 80.6733 81.9524 80.6344 79.3751C80.5957 76.7976 82.5581 74.3794 85.8845 72.5729C89.2004 70.7721 93.8168 69.6138 98.9459 69.5369Z"
                         stroke="url(#paint146_linear_2_181)"
                         stroke-width="0.444761" />
@@ -1372,6 +1739,7 @@
                   }">
                   <path
                      id="Ellipse 253_2"
+                     class="svg-line"
                      d="M93.4018 65.0866C98.5276 64.8901 103.199 65.8008 106.606 67.4222C110.024 69.0489 112.114 71.359 112.213 73.9349C112.311 76.5107 110.405 78.9732 107.122 80.8567C103.848 82.7342 99.2603 84 94.1345 84.1966C89.0085 84.393 84.337 83.4824 80.9298 81.8609C77.5121 80.2343 75.4236 77.9249 75.3247 75.3492C75.2259 72.7733 77.1314 70.31 80.4147 68.4264C83.6877 66.5488 88.2759 65.2831 93.4018 65.0866Z"
                      fill="#6562E7"
                      stroke="url(#paint150_linear_2_181)"
@@ -1389,6 +1757,7 @@
                   </g>
                   <path
                      id="Ellipse 255_2"
+                     class="svg-line"
                      d="M92.6264 58.1756C99.3155 57.9191 105.414 59.202 109.865 61.4678C114.326 63.7388 117.067 66.9583 117.205 70.5536C117.342 74.1488 114.856 77.5688 110.582 80.1747C106.318 82.7746 100.335 84.5206 93.6463 84.7771C86.9573 85.0336 80.8584 83.7506 76.4079 81.4849C71.947 79.2139 69.2061 75.9943 69.0681 72.3991C68.9303 68.8038 71.4167 65.3839 75.6907 62.778C79.9547 60.1781 85.9373 58.432 92.6264 58.1756Z"
                      fill="#D2F4FF"
                      stroke="url(#paint151_linear_2_181)"
@@ -1409,6 +1778,7 @@
                   ></foreignObject>
                   <path
                      id="Ellipse 252_2"
+                     class="svg-line"
                      data-figma-bg-blur-radius="4.24299"
                      d="M92.6373 58.4639C99.3265 58.2075 105.425 59.4903 109.876 61.7561C114.337 64.0272 117.078 67.2467 117.216 70.8419C117.353 74.4371 114.867 77.8571 110.593 80.463C106.329 83.0629 100.346 84.8089 93.6572 85.0654C86.9682 85.3219 80.8694 84.0389 76.4188 81.7732C71.9579 79.5022 69.217 76.2826 69.079 72.6874C68.9412 69.0921 71.4276 65.6723 75.7016 63.0663C79.9656 60.4665 85.9482 58.7203 92.6373 58.4639Z"
                      fill="#099D1B"
@@ -1441,6 +1811,7 @@
                         fill="url(#paint153_radial_2_181)"
                         fill-opacity="0.2" />
                      <path
+                        class="svg-line"
                         d="M92.504 55.0037C99.1932 54.7473 105.292 56.0301 109.742 58.2959C114.203 60.567 116.944 63.7865 117.082 67.3817C117.22 70.9769 114.734 74.3969 110.46 77.0028C106.196 79.6027 100.213 81.3487 93.5239 81.6052C86.8349 81.8617 80.7361 80.5787 76.2855 78.313C71.8246 76.042 69.0837 72.8224 68.9457 69.2272C68.8079 65.6319 71.2943 62.2121 75.5683 59.6061C79.8323 57.0062 85.8149 55.2601 92.504 55.0037Z"
                         stroke="url(#paint154_linear_2_181)"
                         stroke-width="0.622666" />
@@ -1457,6 +1828,7 @@
                            fill-opacity="0.08" />
                      </g>
                      <path
+                        class="svg-line"
                         d="M93.1178 57.6723C98.2436 57.4757 102.915 58.3865 106.322 60.0079C109.74 61.6346 111.83 63.9447 111.929 66.5206C112.027 69.0964 110.121 71.5589 106.838 73.4424C103.564 75.3199 98.9763 76.5857 93.8505 76.7822C88.7245 76.9787 84.053 76.0681 80.6458 74.4466C77.2281 72.82 75.1396 70.5106 75.0407 67.9348C74.9419 65.3589 76.8474 62.8957 80.1308 61.0121C83.4037 59.1345 87.9919 57.8688 93.1178 57.6723Z"
                         stroke="url(#paint155_linear_2_181)"
                         stroke-width="0.444761" />
@@ -1543,6 +1915,7 @@
                   }">
                   <path
                      id="Ellipse 253_3"
+                     class="svg-line"
                      d="M100.841 39.0204C105.704 37.3886 110.443 36.9471 114.169 37.5436C117.907 38.142 120.562 39.7703 121.382 42.2142C122.202 44.658 121.066 47.5578 118.446 50.2895C115.834 53.0126 111.788 55.5191 106.925 57.151C102.062 58.7828 97.3229 59.2244 93.597 58.6278C89.8596 58.0294 87.2054 56.4014 86.3851 53.9578C85.5651 51.5139 86.6999 48.6138 89.32 45.8819C91.9319 43.1587 95.9781 40.6524 100.841 39.0204Z"
                      fill="#6562E7"
                      stroke="url(#paint159_linear_2_181)"
@@ -1560,6 +1933,7 @@
                   </g>
                   <path
                      id="Ellipse 255_3"
+                     class="svg-line"
                      d="M98.1573 32.6152C104.504 30.4857 110.717 29.9994 115.625 30.9204C120.545 31.8435 124.082 34.1609 125.226 37.5719C126.371 40.9829 124.948 44.9646 121.581 48.6685C118.221 52.3638 112.972 55.7237 106.626 57.8533C100.28 59.9828 94.0666 60.469 89.1582 59.5481C84.2384 58.625 80.7018 56.3075 79.5571 52.8966C78.4125 49.4856 79.8354 45.504 83.2027 41.8C86.5622 38.1047 91.811 34.7447 98.1573 32.6152Z"
                      fill="#D2F4FF"
                      stroke="url(#paint160_linear_2_181)"
@@ -1580,6 +1954,7 @@
                   ></foreignObject>
                   <path
                      id="Ellipse 252_3"
+                     class="svg-line"
                      data-figma-bg-blur-radius="4.24299"
                      d="M98.2469 32.8817C104.593 30.7522 110.806 30.2659 115.715 31.1868C120.635 32.11 124.171 34.4274 125.316 37.8384C126.46 41.2494 125.038 45.2311 121.67 48.935C118.311 52.6302 113.062 55.9902 106.716 58.1198C100.37 60.2493 94.1562 60.7354 89.2478 59.8146C84.328 58.8915 80.7914 56.5739 79.6467 53.1631C78.5021 49.752 79.925 45.7705 83.2923 42.0665C86.6518 38.3712 91.9006 35.0112 98.2469 32.8817Z"
                      fill="#099D1B"
@@ -1612,6 +1987,7 @@
                         fill="url(#paint162_radial_2_181)"
                         fill-opacity="0.2" />
                      <path
+                        class="svg-line"
                         d="M97.1416 29.5962C103.488 27.4667 109.701 26.9804 114.609 27.9013C119.529 28.8245 123.066 31.1419 124.211 34.5529C125.355 37.9638 123.932 41.9456 120.565 45.6495C117.206 49.3447 111.957 52.7047 105.61 54.8343C99.2642 56.9638 93.0509 57.4499 88.1425 56.5291C83.2226 55.606 79.686 53.2884 78.5413 49.8775C77.3967 46.4665 78.8196 42.4849 82.187 38.7809C85.5464 35.0857 90.7953 31.7257 97.1416 29.5962Z"
                         stroke="url(#paint163_linear_2_181)"
                         stroke-width="0.622666" />
@@ -1628,6 +2004,7 @@
                            fill-opacity="0.08" />
                      </g>
                      <path
+                        class="svg-line"
                         d="M98.4798 31.9863C103.343 30.3544 108.082 29.913 111.808 30.5094C115.546 31.1078 118.201 32.7362 119.021 35.18C119.841 37.6238 118.705 40.5236 116.085 43.2553C113.473 45.9784 109.427 48.4849 104.564 50.1168C99.7004 51.7486 94.9614 52.1902 91.2356 51.5936C87.4981 50.9952 84.8439 49.3673 84.0237 46.9236C83.2036 44.4798 84.3384 41.5796 86.9586 38.8478C89.5705 36.1245 93.6166 33.6182 98.4798 31.9863Z"
                         stroke="url(#paint164_linear_2_181)"
                         stroke-width="0.444761" />
@@ -2503,6 +2880,293 @@
                      stop-color="#40C350"
                      stop-opacity="0" />
                </linearGradient>
+
+               <linearGradient
+                  id="h_paint0_linear_2_181"
+                  x1="511.389"
+                  y1="385.285"
+                  x2="272.326"
+                  y2="256.052"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint1_linear_2_181"
+                  x1="518.042"
+                  y1="328.226"
+                  x2="339.779"
+                  y2="226.016"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint2_linear_2_181"
+                  x1="185.714"
+                  y1="197.496"
+                  x2="6.77796"
+                  y2="91.7234"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint3_linear_2_181"
+                  x1="501.491"
+                  y1="102.829"
+                  x2="307.293"
+                  y2="220.283"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint4_linear_2_181"
+                  x1="263.723"
+                  y1="245.228"
+                  x2="30.5258"
+                  y2="385.113"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint5_linear_2_181"
+                  x1="484.877"
+                  y1="58.1263"
+                  x2="313.026"
+                  y2="163.945"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint6_linear_2_181"
+                  x1="212.657"
+                  y1="214.956"
+                  x2="26.0189"
+                  y2="325.532"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint7_linear_2_181"
+                  x1="478.359"
+                  y1="259.678"
+                  x2="318.451"
+                  y2="355.854"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint8_linear_2_181"
+                  x1="514.216"
+                  y1="291.967"
+                  x2="345.411"
+                  y2="395.126"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint9_linear_2_181"
+                  x1="191.303"
+                  y1="94.7133"
+                  x2="53.1971"
+                  y2="178.44"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint10_linear_2_181"
+                  x1="156.306"
+                  y1="60.675"
+                  x2="0.117057"
+                  y2="154.275"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint11_linear_2_181"
+                  x1="190.533"
+                  y1="383.118"
+                  x2="41.0192"
+                  y2="300.258"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint12_linear_2_181"
+                  x1="218.144"
+                  y1="163.896"
+                  x2="38.0638"
+                  y2="65.5379"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint13_linear_2_181"
+                  x1="478.621"
+                  y1="177.198"
+                  x2="317.937"
+                  y2="83.3768"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+               <linearGradient
+                  id="h_paint14_linear_2_181"
+                  x1="502.404"
+                  y1="149.092"
+                  x2="349.076"
+                  y2="50.3074"
+                  gradientUnits="userSpaceOnUse">
+                  <stop
+                     offset="0.0240385"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+                  <stop
+                     offset="0.508147"
+                     stop-color="#63F974" />
+                  <stop
+                     offset="1"
+                     stop-color="#63F974"
+                     stop-opacity="0" />
+               </linearGradient>
+
                <linearGradient
                   id="paint15_linear_2_181"
                   x1="230.756"
@@ -4934,4 +5598,34 @@
    </UContainer>
 </template>
 
-<style scoped></style>
+<style scoped>
+.neon-svg {
+   position: relative;
+}
+
+[id^='line_Vector_'] {
+   transition: filter 0.3s ease, stroke-width 0.3s ease;
+}
+
+#PatternsHighlight path {
+   box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.6), 0 0 20px 4px rgba(255, 255, 255, 0.4),
+      0 0 30px 6px rgba(255, 255, 255, 0.2);
+   filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.8));
+}
+
+.line-animation {
+   stroke-dasharray: var(--path-length);
+   stroke-dashoffset: var(--path-length);
+   animation: drawLine 2s ease-in-out forwards;
+   animation-delay: var(--animation-delay);
+}
+
+@keyframes drawLine {
+   from {
+      stroke-dashoffset: var(--path-length);
+   }
+   to {
+      stroke-dashoffset: 0;
+   }
+}
+</style>
