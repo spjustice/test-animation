@@ -142,15 +142,17 @@ onMounted(() => {
 <template>
    <UContainer>
       <div class="py-10">
-         <h1 class="text-4xl lg:text-8xl text-center mb-40 mt-40">Welcome to Animation!</h1>
+         <div class="min-h-dvh">
+            <h1 class="text-4xl lg:text-8xl text-center mb-40 pt-40">Welcome to Animation!</h1>
 
-         <p class="mx-auto mb-20 w-fit">Scroll to animated element</p>
+            <p class="mx-auto mb-20 w-fit">Scroll to animated element</p>
 
-         <UBadge
-            class="flex mx-auto w-fit mb-40"
-            size="xl">
-            <UIcon name="lucide-arrow-down" />
-         </UBadge>
+            <UBadge
+               class="flex mx-auto w-fit mb-40"
+               size="xl">
+               <UIcon name="lucide-arrow-down" />
+            </UBadge>
+         </div>
 
          <svg
             ref="svgRef"
@@ -158,7 +160,7 @@ onMounted(() => {
             height="382"
             viewBox="0 0 569 382"
             fill="none"
-            class="mx-auto neon-svg max-w-full"
+            class="mx-auto neon-svg max-w-full mb-20"
             xmlns="http://www.w3.org/2000/svg">
             <defs>
                <!-- Определяем radial gradient для подсветки -->
@@ -214,7 +216,7 @@ onMounted(() => {
             <g id="Frame 1707479390">
                <g
                   id="Patterns"
-                  opacity="0.2">
+                  opacity="1">
                   <path
                      id="line_Vector_314"
                      class="svg-line"
@@ -475,6 +477,22 @@ onMounted(() => {
                               fill="url(#paint28_linear_2_181)" />
                         </g>
                      </g>
+                     <g id="Group 1227">
+                        <path
+                           id="line_Vector_26"
+                           class="svg-line"
+                           d="M224.598 210.525L187.337 232.209C185.819 233.093 184.712 234.54 184.257 236.237L176.397 265.572C175.94 267.276 174.825 268.729 173.298 269.611L115.197 303.156"
+                           stroke="url(#paint29_linear_2_181)"
+                           stroke-width="0.332663"
+                           stroke-linecap="round" />
+                        <path
+                           id="line_Vector_27"
+                           class="svg-line"
+                           d="M230.916 214.348L193.925 235.811C192.403 236.694 191.293 238.143 190.838 239.843L182.979 269.173C182.522 270.877 181.407 272.33 179.88 273.212L121.779 306.756"
+                           stroke="url(#paint30_linear_2_181)"
+                           stroke-width="0.332663"
+                           stroke-linecap="round" />
+                     </g>
                      <g
                         id="Group 1227"
                         mask="url(#spotlightMask)"
@@ -491,6 +509,22 @@ onMounted(() => {
                            class="svg-line"
                            d="M230.916 214.348L193.925 235.811C192.403 236.694 191.293 238.143 190.838 239.843L182.979 269.173C182.522 270.877 181.407 272.33 179.88 273.212L121.779 306.756"
                            stroke="url(#paint30_linear_2_181)"
+                           stroke-width="0.332663"
+                           stroke-linecap="round" />
+                     </g>
+                     <g id="Group 1228">
+                        <path
+                           id="line_Vector_28"
+                           class="svg-line"
+                           d="M316.414 210.693L353.321 231.937C354.853 232.818 355.97 234.273 356.428 235.98L364.283 265.297C364.74 267.001 365.855 268.454 367.383 269.336L425.484 302.881"
+                           stroke="url(#paint31_linear_2_181)"
+                           stroke-width="0.332663"
+                           stroke-linecap="round" />
+                        <path
+                           id="line_Vector_29"
+                           class="svg-line"
+                           d="M309.926 214.52L346.681 235.817C348.204 236.7 349.315 238.15 349.771 239.851L357.629 269.179C358.086 270.883 359.201 272.336 360.729 273.218L418.829 306.763"
+                           stroke="url(#paint32_linear_2_181)"
                            stroke-width="0.332663"
                            stroke-linecap="round" />
                      </g>
@@ -543,9 +577,21 @@ onMounted(() => {
                         class="svg-line"
                         d="M332.049 162.622L397.916 124.7"
                         stroke="url(#paint36_linear_2_181)"
+                        stroke-width="0.332663" />
+                     <path
+                        id="Vector 30"
+                        class="svg-line"
+                        d="M332.049 162.622L397.916 124.7"
+                        stroke="url(#paint36_linear_2_181)"
                         stroke-width="0.332663"
                         mask="url(#spotlightMask)"
                         filter="url(#glowFilter)" />
+                     <path
+                        id="Vector 31"
+                        class="svg-line"
+                        d="M201.186 169.28L122.639 124.372"
+                        stroke="url(#paint37_linear_2_181)"
+                        stroke-width="0.332663" />
                      <path
                         id="Vector 31"
                         class="svg-line"
@@ -1427,12 +1473,17 @@ onMounted(() => {
                </g>
                <g
                   id="Frame 1159"
-                  v-gsap.to="{
-                     y: -15,
-                     duration: 1.5,
-                     ease: 'sine.inOut',
-                     yoyo: true,
-                     repeat: -1,
+                  v-gsap="{
+                     from: {
+                        y: -200,
+                     },
+                     to: {
+                        y: -15,
+                        duration: 1.5,
+                        ease: 'sine.inOut',
+                        yoyo: true,
+                        repeat: -1,
+                     },
                   }">
                   <g id="Frame 1157">
                      <path
@@ -2890,14 +2941,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -2909,14 +2960,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -2928,14 +2979,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -2947,14 +2998,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -2966,14 +3017,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -2985,14 +3036,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -3004,14 +3055,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -3023,14 +3074,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -3042,14 +3093,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -3061,14 +3112,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -3080,14 +3131,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -3099,14 +3150,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -3118,14 +3169,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -3137,14 +3188,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
                <linearGradient
@@ -3156,14 +3207,14 @@ onMounted(() => {
                   gradientUnits="userSpaceOnUse">
                   <stop
                      offset="0.0240385"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                   <stop
                      offset="0.508147"
-                     stop-color="#63F974" />
+                     stop-color="#ffffff" />
                   <stop
                      offset="1"
-                     stop-color="#63F974"
+                     stop-color="#ffffff"
                      stop-opacity="0" />
                </linearGradient>
 
@@ -5608,9 +5659,9 @@ onMounted(() => {
 }
 
 #PatternsHighlight path {
-   box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.6), 0 0 20px 4px rgba(255, 255, 255, 0.4),
+   box-shadow: 0 0 10px 2px rgba(255, 255, 255, 1), 0 0 20px 4px rgba(255, 255, 255, 0.4),
       0 0 30px 6px rgba(255, 255, 255, 0.2);
-   filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.8));
+   filter: drop-shadow(0 0 8px rgba(255, 255, 255, 1));
 }
 
 .line-animation {
